@@ -1,0 +1,95 @@
+---
+title: "R Notebook"
+output: NA
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(tidyverse)
+library(here)
+library(janitor)
+library(scales)
+```
+
+```{r}
+raw_refugee_data <- read_csv("population.csv", skip = 14)
+```
+
+
+```{r paged.print=FALSE}
+prev_year_n_people_ukraine <- 53474
+n_people_ukraine <- 3063095
+
+refugee_data <- 
+  raw_refugee_data %>% 
+  clean_names() %>% 
+  select(-ends_with("iso")) %>% 
+  # select(-country_of_origin_iso) %>% 
+  # count(country_of_origin_iso, sort = T) %>% 
+  pivot_longer(-all_of(c("year", "country_of_origin", "country_of_asylum")),
+               values_to = "n_people",
+               names_to = "person_type",
+               values_drop_na = TRUE) %>% 
+  filter(n_people != 0,
+         country_of_origin != "Unknown",
+         person_type %in% c("asylum_seekers", 
+                            "refugees_under_unhc_rs_mandate",
+                            "venezuelans_displaced_abroad")) %>% 
+  # count(person_type, wt = n_people) %>% 
+  group_by(country_of_origin, year) %>%
+  summarise(n_people = sum(n_people), .groups = "drop_last") %>%
+  mutate(prev_year_n_people = lag(n_people),
+         annual_change_refugees = n_people - prev_year_n_people,
+         time_period = "Annual\nchange") %>%
+  ungroup() %>%
+  add_row(country_of_origin = "Ukraine", 
+          year = 2022,
+          n_people = n_people_ukraine,
+          prev_year_n_people = prev_year_n_people_ukraine,
+          annual_change_refugees = n_people_ukraine - prev_year_n_people_ukraine,
+          time_period = "21 days",
+          .before = 1) %>% 
+  arrange(desc(annual_change_refugees)) %>%
+  mutate(country_of_origin = if_else(str_detect(country_of_origin, "Venezuela"),
+                                                "Venezuela",
+                                                country_of_origin)) %>% 
+  mutate(country_of_origin = if_else(str_detect(country_of_origin, "Syrian"),
+                                                "Syria",
+                                                country_of_origin)) %>%
+  {.}
+
+refugee_data
+```
+
+```{r}
+plot <- 
+  refugee_data %>% 
+  mutate(country_year = interaction(country_of_origin, year, sep = ", ")) %>% 
+  # mutate(country_year = factor(country_year, ordered = TRUE)) %>% 
+  # group_by()
+  mutate(country_year = fct_reorder(country_year, annual_change_refugees, median)) %>% 
+  head(10) %>% 
+  # {.}
+  ggplot(aes(y = country_year, x = annual_change_refugees)) +
+  geom_col() +
+  facet_grid(rows = vars(time_period), scales = "free_y", space = "free") +
+  scale_x_continuous(labels = label_number(scale = 1e-6, accuracy = 1, suffix = "m")) +
+  labs(y = NULL,
+       # x = NULL,
+       subtitle = NULL,
+       title = str_wrap(
+         paste("In just 21 days, the Ukraine invasion has created more",
+               "refugees than any other crisis has done in a whole year")),
+       x = "Change in refugees from previous year") + 
+  theme_minimal() +
+  theme(plot.title.positio = "plot", 
+        strip.text.y = element_text(angle = 0),
+        strip.background = element_rect("grey90", linetype = 0))
+
+plot
+```
+
+
+Ukraine 2022
+2021 - 53474 people 
