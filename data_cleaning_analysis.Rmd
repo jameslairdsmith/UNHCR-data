@@ -41,7 +41,7 @@ refugee_data <-
   summarise(n_people = sum(n_people), .groups = "drop_last") %>%
   mutate(prev_year_n_people = lag(n_people),
          annual_change_refugees = n_people - prev_year_n_people,
-         time_period = "Annual\nchange") %>%
+         time_period = "Annual change") %>%
   ungroup() %>%
   add_row(country_of_origin = "Ukraine", 
           year = 2022,
@@ -61,6 +61,22 @@ refugee_data <-
 
 refugee_data
 ```
+```{r}
+top_refugee_crises <- 
+  refugee_data %>% 
+  mutate(country_year = interaction(country_of_origin, year, sep = ", ")) %>% 
+  # mutate(country_year = factor(country_year, ordered = TRUE)) %>% 
+  # group_by()
+  mutate(country_year = fct_reorder(country_year, annual_change_refugees, median)) %>% 
+  head(10)
+
+top_refugee_crises
+```
+```{r}
+top_refugee_crises %>% 
+  write_csv("top-refugee-crises.csv")
+```
+
 
 ```{r}
 plot <- 
